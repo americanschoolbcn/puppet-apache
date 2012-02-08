@@ -199,26 +199,28 @@ define apache::vhost (
         }
       }
 
-      # cgi-bin
-      file { "${name} cgi-bin directory":
-        path   => $cgipath ? {
-          false   => "${apache::params::root}/${name}/cgi-bin/",
-          default => $cgipath,
-        },
-        ensure => $cgipath ? {
-          "${apache::params::root}/${name}/cgi-bin/" => directory,
-          default => undef, # don't manage this directory unless under $root/$name
-        },
-        owner  => $wwwuser,
-        group  => $group,
-        mode   => $mode,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_sys_script_exec_t",
-          CentOS => "httpd_sys_script_exec_t",
-          default => undef,
-        },
-        require => [File["${apache::params::root}/${name}"]],
-      }
+	  if $cgibin {
+		# cgi-bin
+		file { "${name} cgi-bin directory":
+		  path   => $cgipath ? {
+			false   => "${apache::params::root}/${name}/cgi-bin/",
+			default => $cgipath,
+		  },
+		  ensure => $cgipath ? {
+			"${apache::params::root}/${name}/cgi-bin/" => directory,
+			default => undef, # don't manage this directory unless under $root/$name
+		  },
+		  owner  => $wwwuser,
+		  group  => $group,
+		  mode   => $mode,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_sys_script_exec_t",
+			CentOS => "httpd_sys_script_exec_t",
+			default => undef,
+		  },
+		  require => [File["${apache::params::root}/${name}"]],
+		}
+	  }
 
       case $config_file {
 
