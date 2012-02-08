@@ -256,26 +256,47 @@ define apache::vhost (
         }
       }
 
-
-      exec {"enable vhost ${name}":
-        command => $operatingsystem ? {
-          RedHat => "/usr/local/sbin/a2ensite ${name}",
-          CentOS => "/usr/local/sbin/a2ensite ${name}",
-          default => "/usr/sbin/a2ensite ${name}"
-        },
-        notify  => Exec["apache-graceful"],
-        require => [$operatingsystem ? {
-          redhat => File["/usr/local/sbin/a2ensite"],
-          CentOS => File["/usr/local/sbin/a2ensite"],
-          default => Package[$apache::params::pkg]},
-          File["${apache::params::conf}/sites-available/${name}"],
-          File["${apache::params::root}/${name}/htdocs"],
-          File["${apache::params::root}/${name}/logs"],
-          File["${apache::params::root}/${name}/conf"]
-        ],
-        unless  => "/bin/sh -c '[ -L ${apache::params::conf}/sites-enabled/${name} ] \\
-          && [ ${apache::params::conf}/sites-enabled/${name} -ef ${apache::params::conf}/sites-available/${name} ]'",
-      }
+	  case $docroot {
+		false: {
+		  exec {"enable vhost ${name}":
+			command => $operatingsystem ? {
+			  RedHat => "/usr/local/sbin/a2ensite ${name}",
+			  CentOS => "/usr/local/sbin/a2ensite ${name}",
+			  default => "/usr/sbin/a2ensite ${name}"
+			},
+			notify  => Exec["apache-graceful"],
+			require => [$operatingsystem ? {
+			  redhat => File["/usr/local/sbin/a2ensite"],
+			  CentOS => File["/usr/local/sbin/a2ensite"],
+			  default => Package[$apache::params::pkg]},
+			  File["${apache::params::conf}/sites-available/${name}"],
+			  File["${apache::params::root}/${name}/htdocs"],
+			  File["${apache::params::root}/${name}/logs"],
+			  File["${apache::params::root}/${name}/conf"]
+			],
+			unless  => "/bin/sh -c '[ -L ${apache::params::conf}/sites-enabled/${name} ] \\
+			  && [ ${apache::params::conf}/sites-enabled/${name} -ef ${apache::params::conf}/sites-available/${name} ]'",
+		  }
+		}
+		default: {
+		  exec {"enable vhost ${name}":
+			command => $operatingsystem ? {
+			  RedHat => "/usr/local/sbin/a2ensite ${name}",
+			  CentOS => "/usr/local/sbin/a2ensite ${name}",
+			  default => "/usr/sbin/a2ensite ${name}"
+			},
+			notify  => Exec["apache-graceful"],
+			require => [$operatingsystem ? {
+			  redhat => File["/usr/local/sbin/a2ensite"],
+			  CentOS => File["/usr/local/sbin/a2ensite"],
+			  default => Package[$apache::params::pkg]},
+			  File["${apache::params::conf}/sites-available/${name}"]
+			],
+			unless  => "/bin/sh -c '[ -L ${apache::params::conf}/sites-enabled/${name} ] \\
+			  && [ ${apache::params::conf}/sites-enabled/${name} -ef ${apache::params::conf}/sites-available/${name} ]'",
+		  }
+		}
+	  }
     }
 
     absent:{
