@@ -74,53 +74,122 @@ define apache::vhost (
         notify  => Exec["apache-graceful"],
       }
 
-      file { "${apache::params::root}/${name}":
-        ensure => directory,
-        owner  => root,
-        group  => root,
-        mode   => 755,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_sys_content_t",
-          CentOS => "httpd_sys_content_t",
-          default => undef,
-        },
-        require => File["root directory"],
-      }
+	  if $docroot == false {
+		file { "${apache::params::root}/${name}":
+		  ensure => directory,
+		  owner  => root,
+		  group  => root,
+		  mode   => 755,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_sys_content_t",
+			CentOS => "httpd_sys_content_t",
+			default => undef,
+		  },
+		  require => File["root directory"],
+		}
 
-      file { "${apache::params::root}/${name}/conf":
-        ensure => directory,
-        owner  => $admin ? {
-          "" => $wwwuser,
-          default => $admin,
-        },
-        group  => $group,
-        mode   => $mode,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_config_t",
-          CentOS => "httpd_config_t",
-          default => undef,
-        },
-        require => [File["${apache::params::root}/${name}"]],
-      }
+		file { "${apache::params::root}/${name}/conf":
+		  ensure => directory,
+		  owner  => $admin ? {
+			"" => $wwwuser,
+			default => $admin,
+		  },
+		  group  => $group,
+		  mode   => $mode,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_config_t",
+			CentOS => "httpd_config_t",
+			default => undef,
+		  },
+		  require => [File["${apache::params::root}/${name}"]],
+		}
 
-      file { "${apache::params::root}/${name}/htdocs":
-        ensure => directory,
-        owner  => $wwwuser,
-        group  => $group,
-        mode   => $mode,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_sys_content_t",
-          CentOS => "httpd_sys_content_t",
-          default => undef,
-        },
-        require => [File["${apache::params::root}/${name}"]],
-      }
+		file { "${apache::params::root}/${name}/htdocs":
+		  ensure => directory,
+		  owner  => $wwwuser,
+		  group  => $group,
+		  mode   => $mode,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_sys_content_t",
+			CentOS => "httpd_sys_content_t",
+			default => undef,
+		  },
+		  require => [File["${apache::params::root}/${name}"]],
+		}
+
+		# Log files
+		file {"${apache::params::root}/${name}/logs":
+		  ensure => directory,
+		  owner  => root,
+		  group  => root,
+		  mode   => 755,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_log_t",
+			CentOS => "httpd_log_t",
+			default => undef,
+		  },
+		  require => File["${apache::params::root}/${name}"],
+		}
+
+		# We have to give log files to right people with correct rights on them.
+		# Those rights have to match those set by logrotate
+		file { ["${apache::params::root}/${name}/logs/access.log",
+				"${apache::params::root}/${name}/logs/error.log"] :
+		  ensure => present,
+		  owner => root,
+		  group => adm,
+		  mode => 644,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_log_t",
+			CentOS => "httpd_log_t",
+			default => undef,
+		  },
+		  require => File["${apache::params::root}/${name}/logs"],
+		}
+
+		# Private data
+		file {"${apache::params::root}/${name}/private":
+		  ensure  => directory,
+		  owner   => $wwwuser,
+		  group   => $group,
+		  mode    => $mode,
+		  seltype => $operatingsystem ? {
+			redhat => "httpd_sys_content_t",
+			CentOS => "httpd_sys_content_t",
+			default => undef,
+		  },
+		  require => File["${apache::params::root}/${name}"],
+		}
+
+		# README file
+		file {"${apache::params::root}/${name}/README":
+		  ensure  => present,
+		  owner   => root,
+		  group   => root,
+		  mode    => 644,
+		  content => $readme ? {
+			false => template("apache/README_vhost.erb"),
+			default => $readme,
+		  },
+		  require => File["${apache::params::root}/${name}"],
+		}
+	  }
  
       if $htdocs {
-        File["${apache::params::root}/${name}/htdocs"] {
-          source  => $htdocs,
-          recurse => true,
-        }
+		case $docroot {
+		  false: {
+			File["${apache::params::root}/${name}/htdocs"] {
+			  source  => $htdocs,
+			  recurse => true,
+			}
+		  }
+		  default: {
+			File["${apache::params::root}/${name}/$documentroot"] {
+			  source  => $htdocs,
+			  recurse => true,
+			}
+		  }
+		}
       }
 
       if $conf {
@@ -158,6 +227,18 @@ define apache::vhost (
             source => $config_file,
           }
         }
+		"template": {
+          if $config_content {
+            File["${apache::params::conf}/sites-available/${name}"] {
+              content => template($config_content),
+            }   
+          } else {
+            # default vhost template
+            File["${apache::params::conf}/sites-available/${name}"] {
+              content => template("apache/vhost.erb"),
+            }   
+          }   
+        }   
         "": {
 
           if $config_content {
@@ -173,62 +254,6 @@ define apache::vhost (
         }
       }
 
-      # Log files
-      file {"${apache::params::root}/${name}/logs":
-        ensure => directory,
-        owner  => root,
-        group  => root,
-        mode   => 755,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_log_t",
-          CentOS => "httpd_log_t",
-          default => undef,
-        },
-        require => File["${apache::params::root}/${name}"],
-      }
-
-      # We have to give log files to right people with correct rights on them.
-      # Those rights have to match those set by logrotate
-      file { ["${apache::params::root}/${name}/logs/access.log",
-              "${apache::params::root}/${name}/logs/error.log"] :
-        ensure => present,
-        owner => root,
-        group => adm,
-        mode => 644,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_log_t",
-          CentOS => "httpd_log_t",
-          default => undef,
-        },
-        require => File["${apache::params::root}/${name}/logs"],
-      }
-
-      # Private data
-      file {"${apache::params::root}/${name}/private":
-        ensure  => directory,
-        owner   => $wwwuser,
-        group   => $group,
-        mode    => $mode,
-        seltype => $operatingsystem ? {
-          redhat => "httpd_sys_content_t",
-          CentOS => "httpd_sys_content_t",
-          default => undef,
-        },
-        require => File["${apache::params::root}/${name}"],
-      }
-
-      # README file
-      file {"${apache::params::root}/${name}/README":
-        ensure  => present,
-        owner   => root,
-        group   => root,
-        mode    => 644,
-        content => $readme ? {
-          false => template("apache/README_vhost.erb"),
-          default => $readme,
-        },
-        require => File["${apache::params::root}/${name}"],
-      }
 
       exec {"enable vhost ${name}":
         command => $operatingsystem ? {
