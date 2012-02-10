@@ -1,5 +1,5 @@
 # file managed by puppet
-<VirtualHost<% ports.each do |port| -%> <%= port %><% end -%>>
+<VirtualHost *:80>
         ServerAdmin webmaster@localhost
 
         DocumentRoot /var/www
